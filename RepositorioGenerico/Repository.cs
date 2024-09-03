@@ -20,6 +20,8 @@ public class Repository<T> : IRepository<T> where T : class
   // as entidades retornadas não serão armazenadas em cache no DbContext
   public async Task<IEnumerable<T>> GetAllAsync()
   {
+
+
     return await _context.Set<T>().AsNoTracking().ToListAsync();
   }
     

@@ -19,6 +19,7 @@ namespace APICatalogo.RepositorioGenerico
     {
       get 
       {
+
         return _produtoRepository = _produtoRepository ?? new ProdutoRepositoryGenerico(_context);
 
         //if(_produtoRepository == null)
