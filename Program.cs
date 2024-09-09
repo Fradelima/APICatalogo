@@ -3,7 +3,8 @@ using APICatalogo.DTOs.Mappings;
 using APICatalogo.Extensions;
 using APICatalogo.Filters;
 using APICatalogo.Models;
-using APICatalogo.RepositorioGenerico;
+using APICatalogo.Repositorio;
+using APICatalogo.Repositorio;
 using APICatalogo.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
@@ -14,6 +15,7 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using System.Text;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -28,6 +30,24 @@ builder.Services.AddControllers(options =>
 builder.Services.AddAuthorization();
 //builder.Services.AddAuthentication("Bearer").AddJwtBearer();
 builder.Services.AddEndpointsApiExplorer();
+
+
+builder.Services.AddRateLimiter(options =>
+{
+  options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+
+  options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpcontext =>
+                          RateLimitPartition.GetFixedWindowLimiter(
+                                             partitionKey: httpcontext.User.Identity?.Name ??
+                                                           httpcontext.Request.Headers.Host.ToString(),
+                          factory: partition => new FixedWindowRateLimiterOptions
+                          {
+                            AutoReplenishment = true,
+                            PermitLimit = 2,
+                            QueueLimit = 0,
+                            Window = TimeSpan.FromSeconds(10)
+                          }));
+});
 
 builder.Services.AddSwaggerGen(c =>
 {
@@ -104,12 +124,12 @@ builder.Services.AddAuthorization(options =>
 });
 
 //string SqlConnection = builder.Configuration.GetConnectionString("DefaultConnection");
-//builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
-builder.Services.AddDbContext<CatalogoDbEfPowerContext>(options => options.UseSqlServer(builder.Configuration.GetConnectionString("EfPowerConnection")));
+//builder.Services.AddDbContext<CatalogoDbEfPowerContext>(options => options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddDbContext<CatalogoDbEfPowerContext>(options => options.UseSqlServer(builder.Configuration.GetConnectionString("LocalEfPower")));
 
-builder.Services.AddScoped<IProdutoRepositoryGenerico, ProdutoRepositoryGenerico>();
-builder.Services.AddScoped<ICategoriaRepositoryGenerico, CategoriaRepositoryGenerico>();
-builder.Services.AddScoped<IUnitOfwork,  UnitOfwork>();
+builder.Services.AddScoped<IProdutoRepository, ProdutoRepository>();
+builder.Services.AddScoped<ICategoriaRepository, CategoriaRepository>();
+builder.Services.AddScoped<IUnitOfwork, UnitOfwork>();
 builder.Services.AddScoped<ITokenService, TokenService>();
 
 
@@ -127,9 +147,11 @@ if (app.Environment.IsDevelopment())
   app.UseSwaggerUI();
 }
 
-//app.UseHttpsRedirection();
+app.UseHttpsRedirection();
 
 app.UseAuthorization();
+
+app.UseRateLimiter();
 
 app.MapControllers();
 
